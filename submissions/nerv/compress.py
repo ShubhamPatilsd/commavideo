@@ -49,7 +49,9 @@ def train(frames: torch.Tensor, epochs: int, batch_size: int, lr: float, device:
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr * 0.01)
 
     t_all = torch.linspace(0, 1, N, device=device)
-    use_amp = device.type == 'cuda'
+    # AMP only helps on Tensor Core GPUs (sm_70+). P100 is sm_60 — disable it there.
+    capability = torch.cuda.get_device_capability(device)[0] if device.type == 'cuda' else 0
+    use_amp = device.type == 'cuda' and capability >= 7
     scaler = torch.cuda.amp.GradScaler() if use_amp else None
 
     n_params = sum(p.numel() for p in model.parameters())
@@ -86,10 +88,13 @@ def train(frames: torch.Tensor, epochs: int, batch_size: int, lr: float, device:
 
             if scaler is not None:
                 scaler.scale(loss).backward()
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 scaler.step(optimizer)
                 scaler.update()
             else:
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
                 optimizer.step()
 
             total_loss += pixel_loss.item()
