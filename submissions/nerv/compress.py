@@ -50,7 +50,7 @@ def train(frames: torch.Tensor, epochs: int, batch_size: int, lr: float, device:
 
     t_all = torch.linspace(0, 1, N, device=device)
     use_amp = device.type == 'cuda'
-    scaler = torch.cuda.GradScaler() if use_amp else None
+    scaler = torch.cuda.amp.GradScaler() if use_amp else None
 
     n_params = sum(p.numel() for p in model.parameters())
     print(f"  Model: {n_params:,} params  fp16 weights: {n_params * 2 / 1e6:.1f} MB  amp={use_amp}")
